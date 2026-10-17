@@ -1,3 +1,4 @@
+"use client";
 import Link from "next/link";
 import {ArrowRight,ArrowUpRight,Check,CheckCircle2,ChevronRight,Clock3,Flag,MoreHorizontal,Radio,Sparkles,Star,TrendingUp,Users} from "lucide-react";
 import type {Engagement} from "@/lib/types";

@@ -6,6 +6,7 @@ import {getEngagement} from "@/lib/data";
 import {hasAI,structured} from "@/lib/ai";
 import {answerSchema,audienceDefinitionSchema,brandSchema,propertySchema} from "@/lib/validation";
 import {discoveryMarkdown,seedAudiences} from "@/lib/seed-data";
+import {getSocialGlass} from "@/lib/socialglass/adapter";
 export const runtime="nodejs";
 export const maxDuration=300;
 const json=(value:unknown)=>JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -30,6 +31,27 @@ export async function POST(req:NextRequest,{params}:{params:Promise<{id:string;a
     if(!e.answers.some(a=>a.answer.trim()))throw Error("Add some discovery answers before synthesizing.");
     const result=hasAI()?await structured("discovery",e,z.object({markdown:z.string().min(100),audiences:z.array(audienceDefinitionSchema).min(4).max(6)})):{markdown:discoveryMarkdown(e.brand,e.property,e.answers),audiences:seedAudiences};
     await db.engagement.update({where:{id},data:{discoveryBrief:result.markdown,recommendations:json(result.audiences)}});notice=hasAI()?"Fresh discovery synthesis created with Claude.":"Curated demo synthesis refreshed from your inputs. Add an Anthropic key for new strategic analysis.";break;
+   }
+   case "recommend-audiences":{
+    if(!e.discoveryBrief)throw Error("Synthesize discovery before building audiences.");
+    const definitions=hasAI()?(await structured("audiences",e,z.object({audiences:z.array(audienceDefinitionSchema).min(4).max(6)}))).audiences:e.recommendations;
+    if(!definitions.length)throw Error("No recommendations in this brief. Synthesize again or add an audience.");
+    const existing=new Set(e.audiences.map(a=>a.name.toLowerCase()));
+    await db.audience.createMany({data:definitions.filter(a=>!existing.has(a.name.toLowerCase())).map(def=>({engagementId:id,name:def.name,definition:json(def),platforms:json(def.platforms),composition:json({platformMix:[],topAffinities:[],overlaps:[]})}))});
+    notice=hasAI()?"Fresh audience recommendations added. Existing segments were preserved.":"Recommended demo audiences added. Existing segments were preserved.";break;
+   }
+   case "save-audience":{
+    const{audienceId,definition}=z.object({audienceId:z.string().optional(),definition:audienceDefinitionSchema}).parse(body);
+    const data={name:definition.name,definition:json(definition),platforms:json(definition.platforms),status:"draft",size:0,composition:json({platformMix:[],topAffinities:[],overlaps:[]})};
+    if(audienceId){if(!e.audiences.some(a=>a.id===audienceId))throw Error("Audience not found in this engagement.");await db.audience.update({where:{id:audienceId},data});}else await db.audience.create({data:{...data,engagementId:id}});
+    notice="Audience saved as a draft. Push to SocialGlass to estimate its composition.";break;
+   }
+   case "push-audience":{
+    const{audienceId}=z.object({audienceId:z.string()}).parse(body);const a=e.audiences.find(a=>a.id===audienceId);if(!a)throw Error("Audience not found.");
+    const{size,...composition}=await getSocialGlass().createAudience(a.definition);await db.audience.update({where:{id:audienceId},data:{size,composition:json(composition),status:"live"}});notice="Audience connected to mock SocialGlass. Estimate and composition refreshed.";break;
+   }
+   case "delete-audience":{
+    const{audienceId}=z.object({audienceId:z.string()}).parse(body);if(!e.audiences.some(a=>a.id===audienceId))throw Error("Audience not found.");await db.audience.delete({where:{id:audienceId}});notice="Audience removed. Historic snapshots were preserved.";break;
    }
    default:return NextResponse.json({error:"Unknown action"},{status:404});
   }
