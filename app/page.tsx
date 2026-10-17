@@ -1,1 +1,5 @@
-export default function Page() { return <main className="p-16"><p className="eyebrow">SocialGlass / Partnerships</p><h1 className="display mt-6 text-5xl">Intelligence into possibility.</h1><p className="mt-6">Your partnership workbench is taking shape.</p></main>; }
+import {getEngagements} from "@/lib/data";
+import {db} from "@/lib/db";
+import {EngagementList} from "@/components/engagement-list";
+export const dynamic="force-dynamic";
+export default async function Page(){const [items,brands]=await Promise.all([getEngagements(),db.brand.findMany({include:{properties:{select:{id:true,name:true}}}})]);return <EngagementList items={JSON.parse(JSON.stringify(items))} brands={brands}/>}
