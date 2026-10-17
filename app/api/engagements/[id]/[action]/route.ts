@@ -9,6 +9,7 @@ import {discoveryMarkdown,seedAudiences} from "@/lib/seed-data";
 import {getSocialGlass} from "@/lib/socialglass/adapter";
 import {generateIdeas} from "@/lib/ideation";
 import type {Budget} from "@/lib/types";
+import {getImageProvider} from "@/lib/images/provider";
 export const runtime="nodejs";
 export const maxDuration=300;
 const json=(value:unknown)=>JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -88,6 +89,16 @@ export async function POST(req:NextRequest,{params}:{params:Promise<{id:string;a
    }
    case "score-output":{
     const v=z.object({outputId:z.string(),score:scoreSchema}).parse(body);if(!e.outputs.some(o=>o.id===v.outputId))throw Error("Idea not found.");await db.output.update({where:{id:v.outputId},data:{score:json(v.score)}});notice="Consultant scores saved.";break;
+   }
+   case "render":{
+    const v=z.object({outputId:z.string(),location:z.string().max(200).optional(),automatic:z.boolean().optional()}).parse(body);const idea=e.outputs.find(o=>o.id===v.outputId);if(!idea||idea.lane!=="experiential")throw Error("Experiential idea not found.");
+    const location=v.location?idea.brief.alternateLocations?.find(l=>l.name===v.location):null;if(v.location&&!location)throw Error("Choose one of this idea's alternate locations.");
+    let prompt=idea.brief.renderingPrompt||"";if(location)prompt=hasAI()?(await structured("rendering",{idea,location},z.object({prompt:z.string().min(100)}))).prompt:`${prompt}\nLocation variation: ${location.name}. ${location.description}. Adapt the same installation to this location. No readable text, no real player likenesses, no real team marks.`;
+    if(!prompt)throw Error("Add a rendering prompt to the idea first.");
+    const result=await getImageProvider().generate(prompt);
+    if(result){await db.rendering.create({data:{outputId:idea.id,...result}});notice="New concept rendering saved.";}else notice="Rendering: add image provider key. Your concept, prompt, and existing seeded images are preserved.";
+    if(location&&result)await db.output.update({where:{id:idea.id},data:{brief:json({...idea.brief,renderingPrompt:prompt})}});
+    break;
    }
    default:return NextResponse.json({error:"Unknown action"},{status:404});
   }
