@@ -53,6 +53,17 @@ export async function POST(req:NextRequest,{params}:{params:Promise<{id:string;a
    case "delete-audience":{
     const{audienceId}=z.object({audienceId:z.string()}).parse(body);if(!e.audiences.some(a=>a.id===audienceId))throw Error("Audience not found.");await db.audience.delete({where:{id:audienceId}});notice="Audience removed. Historic snapshots were preserved.";break;
    }
+   case "run-tracking":{
+    const v=z.object({audienceIds:z.array(z.string()).min(1).max(30),window:z.object({start:z.iso.date(),end:z.iso.date()})}).parse(body);
+    const duration=(Date.parse(v.window.end)-Date.parse(v.window.start))/86400000;if(duration<0||duration>365)throw Error("Choose a tracking window between 1 and 366 days.");
+    const audiences=e.audiences.filter(a=>v.audienceIds.includes(a.id));if(audiences.length!==new Set(v.audienceIds).size)throw Error("One or more audiences are not in this engagement.");
+    const raw=await getSocialGlass().getTrends({audienceIds:audiences.map(a=>a.name),window:v.window});
+    const scored=hasAI()?(await structured("scoring",{discovery:e.discoveryBrief,brand:e.brand,property:e.property,trends:raw.map(t=>({...t,id:t.key})),window:v.window},z.object({scores:z.array(z.object({id:z.string(),brandRelevance:z.number().int().min(0).max(100),propertyRelevance:z.number().int().min(0).max(100),whyItMatters:z.string()})).min(raw.length).max(raw.length)}))).scores:null;
+    if(scored&&(new Set(scored.map(s=>s.id)).size!==raw.length||raw.some(t=>!scored.some(s=>s.id===t.key))))throw Error("Claude returned incomplete trend scores. Please retry; the last snapshot was preserved.");
+    await db.trendSnapshot.create({data:{engagementId:id,audienceId:audiences[0].id,audienceIds:json(audiences.map(a=>a.id)),window:json(v.window),trends:{create:raw.map(t=>{const{key,...rest}=t;const score=scored?.find(s=>s.id===key);return{...rest,platforms:json(t.platforms),exemplars:json(t.exemplars),weeklyVolume:json(t.weeklyVolume),relevanceScore:score?.brandRelevance??t.relevanceScore,propertyScore:score?.propertyRelevance??t.propertyScore,whyItMatters:score?.whyItMatters??t.whyItMatters}})}}});
+    notice=hasAI()?"New mock trend snapshot captured with fresh Claude relevance scores.":"New snapshot captured from the curated mock library. Star signals to take into ideation.";break;
+   }
+   case "star-trend":{const{trendId,starred}=z.object({trendId:z.string(),starred:z.boolean()}).parse(body);if(!e.snapshots.some(s=>s.trends.some(t=>t.id===trendId)))throw Error("Trend not found in this engagement.");await db.trend.update({where:{id:trendId},data:{starred}});notice=starred?"Signal added to your creative shortlist.":"Signal removed from your shortlist.";break;}
    default:return NextResponse.json({error:"Unknown action"},{status:404});
   }
   return NextResponse.json({engagement:await getEngagement(id),notice});
