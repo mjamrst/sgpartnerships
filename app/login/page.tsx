@@ -1,6 +1,76 @@
 "use client";
-import {useState} from "react";
-import {ArrowRight,LockKeyhole} from "lucide-react";
-import {Logo} from "@/components/shell";
-import {Button} from "@/components/ui/button";
-export default function Login(){const[password,setPassword]=useState("");const[error,setError]=useState("");const[busy,setBusy]=useState(false);return <main className="dot-grid flex min-h-screen items-center justify-center p-6"><div className="paper w-full max-w-md p-9 shadow-sm"><Logo/><p className="eyebrow mt-2 pl-10 text-muted-foreground">Partnerships</p><div className="mt-12 flex size-11 items-center justify-center rounded-xl bg-muted"><LockKeyhole size={21} strokeWidth={1.3}/></div><h1 className="display mt-5 text-4xl">A little context.<br/>A lot of possibility.</h1><p className="mb-7 mt-4 text-sm leading-relaxed text-muted-foreground">Enter your workspace password to explore the partnership workbench.</p><form onSubmit={async ev=>{ev.preventDefault();setBusy(true);setError("");try{const res=await fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password})});const data=await res.json();if(!res.ok)throw Error(data.error);const next=new URLSearchParams(location.search).get("next");location.href=next?.startsWith("/")&&!next.startsWith("//")?next:"/";}catch(err){setError(err instanceof Error?err.message:"Unable to sign in");setBusy(false)}}}><label className="mb-2 block text-xs font-medium" htmlFor="password">Workspace password</label><input autoComplete="current-password" id="password" type="password" required value={password} onChange={e=>setPassword(e.target.value)}/>{error&&<p role="alert" className="mt-3 text-xs text-red-700">{error}</p>}<Button className="mt-4 w-full" disabled={busy}>{busy?"Opening workspace…":"Enter workspace"}<ArrowRight size={15}/></Button></form><p className="mt-8 text-[10px] text-muted-foreground">A private consulting workspace. All demo brands are fictional.</p></div></main>}
+import { useState } from "react";
+import { ArrowRight, LockKeyhole } from "lucide-react";
+import { Logo } from "@/components/shell";
+import { Button } from "@/components/ui/button";
+export default function Login() {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <main className="dot-grid flex min-h-screen items-center justify-center p-6">
+      <div className="paper w-full max-w-md p-9 shadow-sm">
+        <Logo />
+        <p className="eyebrow mt-2 pl-10 text-muted-foreground">Partnerships</p>
+        <div className="mt-12 flex size-11 items-center justify-center rounded-xl bg-muted">
+          <LockKeyhole size={21} strokeWidth={1.3} />
+        </div>
+        <h1 className="display mt-5 text-4xl">
+          A little context.
+          <br />A lot of possibility.
+        </h1>
+        <p className="mb-7 mt-4 text-sm leading-relaxed text-muted-foreground">
+          Enter your workspace password to explore the partnership workbench.
+        </p>
+        <form
+          onSubmit={async (ev) => {
+            ev.preventDefault();
+            setBusy(true);
+            setError("");
+            try {
+              const res = await fetch("/api/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ password }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw Error(data.error);
+              const next = new URLSearchParams(location.search).get("next");
+              location.href =
+                next?.startsWith("/") && !next.startsWith("//") ? next : "/";
+            } catch (err) {
+              setError(
+                err instanceof Error ? err.message : "Unable to sign in",
+              );
+              setBusy(false);
+            }
+          }}
+        >
+          <label className="mb-2 block text-xs font-medium" htmlFor="password">
+            Workspace password
+          </label>
+          <input
+            autoComplete="current-password"
+            id="password"
+            type="password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          {error && (
+            <p role="alert" className="mt-3 text-xs text-red-700">
+              {error}
+            </p>
+          )}
+          <Button className="mt-4 w-full" disabled={busy}>
+            {busy ? "Opening workspace…" : "Enter workspace"}
+            <ArrowRight size={15} />
+          </Button>
+        </form>
+        <p className="mt-8 text-[10px] text-muted-foreground">
+          A private consulting workspace. All demo brands are fictional.
+        </p>
+      </div>
+    </main>
+  );
+}

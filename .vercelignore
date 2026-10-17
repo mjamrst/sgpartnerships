@@ -1,0 +1,8 @@
+.env*
+.agents/
+skills-lock.json
+prisma/*.db*
+prisma/schema.generated.prisma
+public/generated/
+tests/
+test-results/

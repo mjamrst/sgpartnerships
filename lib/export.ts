@@ -1,34 +1,227 @@
 import sharp from "sharp";
-import {z} from "zod";
-import type {Engagement,Idea,Scope} from "./types";
-import {laneLabels} from "./types";
-import {hasAI,structured} from "./ai";
-import {imageBytes} from "./images/provider";
-export const escapeHtml=(s:unknown)=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!));
-const h=escapeHtml;
-function markdown(text:string){return text.split("\n").map(line=>{const content=h(line.replace(/^#{1,6}\s|^[-*]\s|^\d+\.\s/,"" )).replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>");return line.startsWith("### ")?`<h3>${content}</h3>`:line.startsWith("## ")?`<h2>${content}</h2>`:line.startsWith("- ")?`<p class="bullet">• ${content}</p>`:line.trim()?`<p>${content}</p>`:""}).join("")}
-const item=(label:string,value:unknown)=>`<div class="info"><h4>${h(label)}</h4><p>${h(Array.isArray(value)?value.join("\n"):value||"To be confirmed").replace(/\n/g,"<br>")}</p></div>`;
-export function scopeExport(e:Engagement,scope:Scope,propertyId:string){return {...e,scope,outputs:e.outputs.filter(o=>o.scope===scope&&(scope==="brand"||o.propertyId===propertyId))}}
-export async function clientDeck(e:Engagement):Promise<string>{
- const relevantIds=new Set(e.outputs.flatMap(o=>o.trendIds));const trends=e.snapshots.flatMap(s=>s.trends).filter(t=>relevantIds.has(t.id)||t.starred);const unique=trends.filter((t,i)=>trends.findIndex(v=>v.title===t.title)===i).slice(0,8);
- const narrative=hasAI()?await structured("deck",{name:e.name,brand:e.brand,discoveryBrief:e.discoveryBrief,audiences:e.audiences,topTrends:unique,ideas:e.outputs},z.object({title:z.string(),subtitle:z.string(),executiveSummary:z.string(),nextSteps:z.array(z.string()).min(3).max(3)})):{title:e.name,subtitle:"Audience intelligence. Partnership possibility.",executiveSummary:`A working creative direction for ${e.brand.name}, grounded in audience hypotheses, cultural signals, and the rights already in the portfolio. This deck brings together the discovery foundation and specific ideas to evaluate, refine, and pilot.`,nextSteps:["Confirm the shortlisted concepts against contracted rights, talent availability, and compliance requirements.","Invite community collaborators to refine the execution and agree a paid participation plan.","Pilot one activation with explicit measures for voluntary sharing and retained app activation."]};
- const images=new Map<string,string>();
- for(const idea of e.outputs){const r=idea.renderings.find(r=>r.imageUrl);if(r&&!images.has(r.imageUrl)){try{const buffer=await sharp(await imageBytes(r.imageUrl)).resize({width:1100,withoutEnlargement:true}).jpeg({quality:72}).toBuffer();images.set(r.imageUrl,`data:image/jpeg;base64,${buffer.toString("base64")}`);}catch{images.set(r.imageUrl,"")}}}
- const scopeLabel=e.scope==="brand"?"Brand-wide portfolio":e.brand.properties.find(p=>p.id===e.outputs[0]?.propertyId)?.name??e.property?.name??"Property-specific";
- const pages:string[]=[];const page=(content:string,cls="")=>{pages.push(`<section class="page ${cls}"><header><span>SG / PARTNERSHIPS</span><span>${h(e.brand.name)} · ${h(scopeLabel)}</span></header>${content}<footer><span>Confidential working concept · Fictional demo intelligence</span><span>${String(pages.length+1).padStart(2,"0")}</span></footer></section>`)};
- page(`<div class="cover-body"><span class="kicker">SocialGlass · Strategy & Creative</span><h1>${h(narrative.title)}</h1><p class="subtitle">${h(narrative.subtitle)}</p><div class="cover-line"></div><p class="cover-meta">${h(scopeLabel)}<br>${h(new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric",timeZone:"America/Los_Angeles"}))}</p></div><div class="cover-mark">✧</div>`,"cover");
- page(`<span class="kicker">The opportunity</span><h2 class="chapter">A useful role in the lives of fans.</h2><p class="lead">${h(narrative.executiveSummary)}</p><div class="two-col"><div><h3>What success serves</h3>${e.brand.objectives.map((o,i)=>`<p class="numbered"><b>0${i+1}</b> ${h(o)}</p>`).join("")}</div><div class="sage"><h3>The creative guardrails</h3>${e.brand.constraints.map(c=>`<p>• ${h(c)}</p>`).join("")}</div></div><p class="disclaimer">All brands, properties, posts, audience estimates, growth metrics, and historical results in the demo are fictional. Scores are qualitative assessments. Images are AI concept visualizations, not photographs of real activations.</p>`);
- const sections=e.discoveryBrief.split(/(?=^## )/m).filter(s=>s.trim());for(let i=0;i<sections.length;i+=2)page(`<span class="kicker">01 / Discovery foundation</span><div class="discovery two-col">${sections.slice(i,i+2).map(s=>`<div>${markdown(s)}</div>`).join("")}</div>`);
- for(let i=0;i<e.audiences.length;i+=3)page(`<span class="kicker">02 / Audience set-up</span><h2 class="chapter">Communities, not just demographics.</h2><div class="three-col">${e.audiences.slice(i,i+3).map(a=>`<article class="audience"><span class="tag">${h(a.status)} · illustrative</span><h3>${h(a.name)}</h3><p class="big">${new Intl.NumberFormat("en-US",{notation:"compact"}).format(a.size)}</p><p class="tiny">Estimated audience · overlaps apply</p>${item("Definition",a.definition.interests)}${item("Behaviors",a.definition.behaviors)}${item("Platforms",a.platforms.join(" / "))}${item("Boundaries",`${a.definition.geo} · ${a.definition.ageBand}\n${a.definition.exclusions.join(", ")}`)}</article>`).join("")}</div>`);
- for(let i=0;i<unique.length;i+=4)page(`<span class="kicker">03 / Shortlisted signals</span><h2 class="chapter">What’s moving. Why it matters.</h2><div class="two-col trend-grid">${unique.slice(i,i+4).map(t=>`<article class="trend"><span class="tag">${h(t.category)} · ${h(t.velocity)}</span><h3>${h(t.title)}</h3><p>${h(t.summary)}</p><div class="metrics"><span>${t.growth>0?"+":""}${t.growth}% growth</span><span>${t.relevanceScore}/100 brand fit</span><span>${t.propertyScore}/100 property fit</span></div><p class="small">${h(t.whyItMatters)}</p></article>`).join("")}</div>`);
- for(const idea of e.outputs){const r=idea.renderings.find(r=>r.imageUrl);const image=r?images.get(r.imageUrl):null;const source=idea.trendIds.map(id=>e.snapshots.flatMap(s=>s.trends).find(t=>t.id===id)?.title??"Archived signal").join(" · ");
-  page(`<span class="kicker">04 / ${h(laneLabels[idea.lane])}</span><h2 class="chapter">${h(idea.title)}</h2><p class="hook">${h(idea.hook)}</p><div class="two-col story"><div>${image?`<img class="render" src="${image}" alt="AI concept visualization"><p class="tiny">AI concept visualization · ${h(r?.provider)}</p>`:`<div class="concept-art"><span>✧</span><p>${idea.lane==="experiential"?"Rendering: add image provider key":h(laneLabels[idea.lane])}</p></div>`}${item("The signal",source)}${item("Objective",idea.brief.objective)}${item("Rights used",idea.brief.rights)}</div><div class="concept">${idea.concept.split("\n\n").map(p=>`<p>${h(p)}</p>`).join("")}</div></div>`);
-  const specific=idea.lane==="athlete_creator"?item("Talent / archetype",idea.brief.talent)+item("The ask",idea.brief.ask)+item("Deliverables",idea.brief.deliverables)+item("Three-beat storyline",idea.brief.storyline)+item("Co-branding",idea.brief.coBranding):idea.lane==="experiential"?item("Location & footprint",`${idea.brief.location}\n${idea.brief.footprint}`)+item("The ritual",idea.brief.ritual)+item("Capture mechanic",idea.brief.capture)+item("Alternate contexts",idea.brief.alternateLocations?.map(l=>`${l.name}: ${l.description}`)):item("Platform / format",`${idea.brief.platform} · ${idea.brief.format}`)+item("Opening hook",idea.brief.openingHook)+item("Publisher / cadence",`${idea.brief.publisher}\n${idea.brief.cadence}`)+item("Three example posts",idea.brief.posts?.map((p,i)=>`${i+1}. ${p.concept}\n${p.caption}`));
-  page(`<span class="kicker">${h(laneLabels[idea.lane])} / Execution brief</span><h2 class="chapter compact">${h(idea.title)}</h2><div class="two-col execution"><div>${specific}</div><div class="sage">${item("Budget & timing",`${idea.brief.budget} band · ${idea.brief.timing}`)}${item("Why people share",idea.brief.fanReason)}${item("Measurement",idea.brief.measurement)}${item("Risks / approvals",idea.brief.risks)}<h4>Consultant scorecard</h4><div class="metrics">${Object.entries(idea.score).map(([k,v])=>`<span>${h(k.replace(/([A-Z])/g," $1"))}: ${v}/5</span>`).join("")}</div></div></div>`);
- }
- page(`<span class="kicker">From possibility to pilot</span><h2 class="chapter">Make the next step a useful one.</h2>${narrative.nextSteps.map((s,i)=>`<div class="next-step"><span>0${i+1}</span><p>${h(s)}</p></div>`).join("")}<p class="disclaimer">Budget bands: S $15,000–$40,000; M $40,000–$100,000; L $100,000–$250,000. Illustrative production estimates excluding rights fees and media. Concepts are alternatives against a finite rights and appearance allocation. No idea is approved for activation until the brand, property, talent, and compliance teams have signed off.</p>`);
- const html=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${h(e.name)} — Client concepts</title><style>
+import { z } from "zod";
+import type { Engagement, Idea, Scope } from "./types";
+import { laneLabels } from "./types";
+import { hasAI, structured } from "./ai";
+import { imageBytes } from "./images/provider";
+export const escapeHtml = (s: unknown) =>
+  String(s ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ]!,
+  );
+const h = escapeHtml;
+function markdown(text: string) {
+  return text
+    .split("\n")
+    .map((line) => {
+      const content = h(line.replace(/^#{1,6}\s|^[-*]\s|^\d+\.\s/, "")).replace(
+        /\*\*(.+?)\*\*/g,
+        "<strong>$1</strong>",
+      );
+      return line.startsWith("### ")
+        ? `<h3>${content}</h3>`
+        : line.startsWith("## ")
+          ? `<h2>${content}</h2>`
+          : line.startsWith("- ")
+            ? `<p class="bullet">• ${content}</p>`
+            : line.trim()
+              ? `<p>${content}</p>`
+              : "";
+    })
+    .join("");
+}
+const item = (label: string, value: unknown) =>
+  `<div class="info"><h4>${h(label)}</h4><p>${h(Array.isArray(value) ? value.join("\n") : value || "To be confirmed").replace(/\n/g, "<br>")}</p></div>`;
+export function scopeExport(e: Engagement, scope: Scope, propertyId: string) {
+  return {
+    ...e,
+    scope,
+    propertyId: scope === "property" ? propertyId : null,
+    property:
+      scope === "property"
+        ? (e.brand.properties.find((p) => p.id === propertyId) ?? null)
+        : null,
+    outputs: e.outputs.filter(
+      (o) =>
+        o.scope === scope && (scope === "brand" || o.propertyId === propertyId),
+    ),
+  };
+}
+export async function clientDeck(e: Engagement): Promise<string> {
+  const relevantIds = new Set(e.outputs.flatMap((o) => o.trendIds));
+  const trends = e.snapshots
+    .flatMap((s) => s.trends)
+    .filter((t) => relevantIds.has(t.id) || t.starred);
+  const unique = trends
+    .filter((t, i) => trends.findIndex((v) => v.title === t.title) === i)
+    .slice(0, 8);
+  const narrative = hasAI()
+    ? await structured(
+        "deck",
+        {
+          name: e.name,
+          brand: e.brand,
+          discoveryBrief: e.discoveryBrief,
+          audiences: e.audiences,
+          topTrends: unique,
+          ideas: e.outputs,
+        },
+        z.object({
+          title: z.string(),
+          subtitle: z.string(),
+          executiveSummary: z.string(),
+          nextSteps: z.array(z.string()).min(3).max(3),
+        }),
+      )
+    : {
+        title: e.name,
+        subtitle: "Audience intelligence. Partnership possibility.",
+        executiveSummary: `A working creative direction for ${e.brand.name}, grounded in audience hypotheses, cultural signals, and the rights already in the portfolio. This deck brings together the discovery foundation and specific ideas to evaluate, refine, and pilot.`,
+        nextSteps: [
+          "Confirm the shortlisted concepts against contracted rights, talent availability, and compliance requirements.",
+          "Invite community collaborators to refine the execution and agree a paid participation plan.",
+          "Pilot one activation with explicit measures for voluntary sharing and retained app activation.",
+        ],
+      };
+  const images = new Map<string, string>();
+  for (const idea of e.outputs) {
+    const r = idea.renderings.find((r) => r.imageUrl);
+    if (r && !images.has(r.imageUrl)) {
+      try {
+        const buffer = await sharp(await imageBytes(r.imageUrl))
+          .resize({ width: 1100, withoutEnlargement: true })
+          .jpeg({ quality: 72 })
+          .toBuffer();
+        images.set(
+          r.imageUrl,
+          `data:image/jpeg;base64,${buffer.toString("base64")}`,
+        );
+      } catch {
+        images.set(r.imageUrl, "");
+      }
+    }
+  }
+  const scopeLabel =
+    e.scope === "brand"
+      ? "Brand-wide portfolio"
+      : (e.brand.properties.find((p) => p.id === e.outputs[0]?.propertyId)
+          ?.name ??
+        e.property?.name ??
+        "Property-specific");
+  const pages: string[] = [];
+  const page = (content: string, cls = "") => {
+    pages.push(
+      `<section class="page ${cls}"><header><span>SG / PARTNERSHIPS</span><span>${h(e.brand.name)} · ${h(scopeLabel)}</span></header>${content}<footer><span>Confidential working concept · Fictional demo intelligence</span><span>${String(pages.length + 1).padStart(2, "0")}</span></footer></section>`,
+    );
+  };
+  page(
+    `<div class="cover-body"><span class="kicker">SocialGlass · Strategy & Creative</span><h1>${h(narrative.title)}</h1><p class="subtitle">${h(narrative.subtitle)}</p><div class="cover-line"></div><p class="cover-meta">${h(scopeLabel)}<br>${h(new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles" }))}</p></div><div class="cover-mark">✧</div>`,
+    "cover",
+  );
+  page(
+    `<span class="kicker">The opportunity</span><h2 class="chapter">A useful role in the lives of fans.</h2><p class="lead">${h(narrative.executiveSummary)}</p><div class="two-col"><div><h3>What success serves</h3>${e.brand.objectives.map((o, i) => `<p class="numbered"><b>0${i + 1}</b> ${h(o)}</p>`).join("")}</div><div class="sage"><h3>The creative guardrails</h3>${e.brand.constraints.map((c) => `<p>• ${h(c)}</p>`).join("")}</div></div><p class="disclaimer">All brands, properties, posts, audience estimates, growth metrics, and historical results in the demo are fictional. Scores are qualitative assessments. Images are AI concept visualizations, not photographs of real activations.</p>`,
+  );
+  const sections = e.discoveryBrief.split(/(?=^## )/m).filter((s) => s.trim());
+  for (let i = 0; i < sections.length; i += 2)
+    page(
+      `<span class="kicker">01 / Discovery foundation</span><div class="discovery two-col">${sections
+        .slice(i, i + 2)
+        .map((s) => `<div>${markdown(s)}</div>`)
+        .join("")}</div>`,
+    );
+  for (let i = 0; i < e.audiences.length; i += 3)
+    page(
+      `<span class="kicker">02 / Audience set-up</span><h2 class="chapter">Communities, not just demographics.</h2><div class="three-col">${e.audiences
+        .slice(i, i + 3)
+        .map(
+          (a) =>
+            `<article class="audience"><span class="tag">${h(a.status)} · illustrative</span><h3>${h(a.name)}</h3><p class="big">${new Intl.NumberFormat("en-US", { notation: "compact" }).format(a.size)}</p><p class="tiny">Estimated audience · overlaps apply</p>${item("Definition", a.definition.interests)}${item("Behaviors", a.definition.behaviors)}${item("Platforms", a.platforms.join(" / "))}${item("Boundaries", `${a.definition.geo} · ${a.definition.ageBand}\n${a.definition.exclusions.join(", ")}`)}</article>`,
+        )
+        .join("")}</div>`,
+    );
+  for (let i = 0; i < unique.length; i += 4)
+    page(
+      `<span class="kicker">03 / Shortlisted signals</span><h2 class="chapter">What’s moving. Why it matters.</h2><div class="two-col trend-grid">${unique
+        .slice(i, i + 4)
+        .map(
+          (t) =>
+            `<article class="trend"><span class="tag">${h(t.category)} · ${h(t.velocity)}</span><h3>${h(t.title)}</h3><p>${h(t.summary)}</p><div class="metrics"><span>${t.growth > 0 ? "+" : ""}${t.growth}% growth</span><span>${t.relevanceScore}/100 brand fit</span><span>${t.propertyScore}/100 property fit</span></div><p class="small">${h(t.whyItMatters)}</p></article>`,
+        )
+        .join("")}</div>`,
+    );
+  for (const idea of e.outputs) {
+    const r = idea.renderings.find((r) => r.imageUrl);
+    const image = r ? images.get(r.imageUrl) : null;
+    const source = idea.trendIds
+      .map(
+        (id) =>
+          e.snapshots.flatMap((s) => s.trends).find((t) => t.id === id)
+            ?.title ?? "Archived signal",
+      )
+      .join(" · ");
+    page(
+      `<span class="kicker">04 / ${h(laneLabels[idea.lane])}</span><h2 class="chapter">${h(idea.title)}</h2><p class="hook">${h(idea.hook)}</p><div class="two-col story"><div>${image ? `<img class="render" src="${image}" alt="AI concept visualization"><p class="tiny">AI concept visualization · ${h(r?.provider)}</p>` : `<div class="concept-art"><span>✧</span><p>${idea.lane === "experiential" ? "Rendering: add image provider key" : h(laneLabels[idea.lane])}</p></div>`}${item("The signal", source)}${item("Objective", idea.brief.objective)}${item("Rights used", idea.brief.rights)}</div><div class="concept">${idea.concept
+        .split("\n\n")
+        .map((p) => `<p>${h(p)}</p>`)
+        .join("")}</div></div>`,
+    );
+    const specific =
+      idea.lane === "athlete_creator"
+        ? item("Talent / archetype", idea.brief.talent) +
+          item("The ask", idea.brief.ask) +
+          item("Deliverables", idea.brief.deliverables) +
+          item("Three-beat storyline", idea.brief.storyline) +
+          item("Co-branding", idea.brief.coBranding)
+        : idea.lane === "experiential"
+          ? item(
+              "Location & footprint",
+              `${idea.brief.location}\n${idea.brief.footprint}`,
+            ) +
+            item("The ritual", idea.brief.ritual) +
+            item("Capture mechanic", idea.brief.capture) +
+            item(
+              "Alternate contexts",
+              idea.brief.alternateLocations?.map(
+                (l) => `${l.name}: ${l.description}`,
+              ),
+            )
+          : item(
+              "Platform / format",
+              `${idea.brief.platform} · ${idea.brief.format}`,
+            ) +
+            item("Opening hook", idea.brief.openingHook) +
+            item(
+              "Publisher / cadence",
+              `${idea.brief.publisher}\n${idea.brief.cadence}`,
+            ) +
+            item(
+              "Three example posts",
+              idea.brief.posts?.map(
+                (p, i) => `${i + 1}. ${p.concept}\n${p.caption}`,
+              ),
+            );
+    page(
+      `<span class="kicker">${h(laneLabels[idea.lane])} / Execution brief</span><h2 class="chapter compact">${h(idea.title)}</h2><div class="two-col execution"><div>${specific}</div><div class="sage">${item("Budget & timing", `${idea.brief.budget} band · ${idea.brief.timing}`)}${item("Why people share", idea.brief.fanReason)}${item("Measurement", idea.brief.measurement)}${item("Risks / approvals", idea.brief.risks)}<h4>Consultant scorecard</h4><div class="metrics">${Object.entries(
+        idea.score,
+      )
+        .map(
+          ([k, v]) => `<span>${h(k.replace(/([A-Z])/g, " $1"))}: ${v}/5</span>`,
+        )
+        .join("")}</div></div></div>`,
+    );
+  }
+  page(
+    `<span class="kicker">From possibility to pilot</span><h2 class="chapter">Make the next step a useful one.</h2>${narrative.nextSteps.map((s, i) => `<div class="next-step"><span>0${i + 1}</span><p>${h(s)}</p></div>`).join("")}<p class="disclaimer">Budget bands: S $15,000–$40,000; M $40,000–$100,000; L $100,000–$250,000. Illustrative production estimates excluding rights fees and media. Concepts are alternatives against a finite rights and appearance allocation. No idea is approved for activation until the brand, property, talent, and compliance teams have signed off.</p>`,
+  );
+  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${h(e.name)} — Client concepts</title><style>
  *{box-sizing:border-box}body{margin:0;background:#e9ede5;color:#2b493c;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6}h1,h2,h3,h4,p{margin:0}p{margin-bottom:10px}header,footer{display:flex;justify-content:space-between;gap:20px;font-size:8px;letter-spacing:1px;color:#829277}header{padding-bottom:12px;border-bottom:1px solid #dce4d4;margin-bottom:24px}footer{margin-top:auto;padding-top:15px;border-top:1px solid #dce4d4;letter-spacing:.3px}.page{position:relative;display:flex;flex-direction:column;width:1120px;min-height:792px;padding:38px 48px;margin:28px auto;background:#fbfcf8;box-shadow:0 2px 15px #28433110}.kicker{display:block;font-size:9px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#859873;margin-bottom:13px}.chapter{font-family:Georgia,serif;font-size:37px;line-height:1.15;letter-spacing:-1px;font-weight:normal;margin-bottom:20px}.chapter.compact{font-size:29px}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:24px}.three-col{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}.lead{font-family:Georgia,serif;font-size:23px;line-height:1.5;max-width:880px;margin-bottom:32px}h3{font-size:16px;font-weight:600;margin:0 0 12px}h4{font-size:8px;letter-spacing:1.2px;text-transform:uppercase;color:#839570;margin:0 0 6px}.info{margin:0 0 16px;break-inside:avoid}.info p{font-size:11px;line-height:1.6;color:#5b7054}.sage{background:#eaf0df;padding:24px;border-radius:9px}.numbered{padding:13px 0;border-top:1px solid #e0e6d7}.numbered b{font-family:Georgia,serif;font-weight:normal;font-size:22px;color:#93a77b;margin-right:10px}.disclaimer{font-size:9px;line-height:1.7;color:#87917e;margin:20px 0}.tag{display:inline-block;border:1px solid #dce4ce;background:#eff4e8;border-radius:5px;padding:3px 7px;font-size:8px;color:#6b8555}.audience{border:1px solid #dfe5d6;border-radius:9px;padding:20px}.audience h3{margin-top:18px}.big{font-size:32px;font-weight:300;margin:12px 0 0}.tiny{font-size:8px;color:#94a086}.audience .tiny{margin-bottom:20px}.trend-grid{gap:20px}.trend{border:1px solid #e0e5d8;border-radius:9px;padding:19px}.trend h3{margin:12px 0 8px;font-size:15px}.trend p{font-size:11px}.metrics{display:flex;flex-wrap:wrap;gap:8px;font-size:9px;font-weight:600;color:#607c4c;margin:12px 0}.metrics span{background:#eaf0df;border-radius:4px;padding:4px 7px}.small{font-size:10px;color:#738368}.hook{font-size:14px;color:#768a67;margin:-8px 0 22px}.render{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;margin-bottom:7px}.concept{font-size:12px;line-height:1.85;color:#5c6d53}.concept p{margin-bottom:15px}.concept-art{height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#e8efdb;border-radius:8px;margin-bottom:20px;color:#7b9465}.concept-art span{font-size:90px;line-height:1.3}.execution .info{margin-bottom:14px}.discovery h2{font-family:Georgia,serif;font-size:27px;line-height:1.3;font-weight:normal;margin:8px 0 18px}.discovery h3{font-size:14px;margin-top:20px}.discovery p{font-size:11px;color:#64755c;line-height:1.7}.bullet{padding-left:9px}.cover{background:#e9efde;overflow:hidden}.cover-body{padding-top:100px;position:relative;z-index:1;max-width:780px}.cover h1{font-family:Georgia,serif;font-size:70px;line-height:1.05;letter-spacing:-3px;font-weight:normal}.subtitle{font-family:Georgia,serif;font-size:25px;color:#789166;margin-top:26px}.cover-line{height:1px;width:75px;background:#8ca475;margin:50px 0 22px}.cover-meta{font-size:11px;color:#7d8e6e;line-height:1.9}.cover-mark{position:absolute;right:15px;bottom:20px;font-size:390px;line-height:1;color:#d5e2c4}.next-step{display:flex;gap:30px;padding:27px 0;border-bottom:1px solid #e0e5d6;align-items:center}.next-step span{font-family:Georgia,serif;font-size:44px;color:#9aac85}.next-step p{font-size:17px;margin:0;max-width:800px}.toolbar{position:sticky;top:0;z-index:5;background:#294d3f;color:white;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;font-size:12px}.toolbar button{border:1px solid #adc09a;border-radius:5px;background:transparent;color:white;padding:7px 15px;cursor:pointer}.page:last-child{break-after:auto}@media(max-width:1160px){.page{width:calc(100% - 32px);min-height:80vw;padding:4vw}.cover h1{font-size:6vw}.cover-mark{font-size:30vw}}@media(max-width:700px){.two-col,.three-col{grid-template-columns:1fr}.page{min-height:0}.chapter{font-size:28px}.cover-body{padding:30px 0}.cover h1{font-size:40px}.cover-mark{display:none}footer{margin-top:24px}}@page{size:A4 landscape;margin:10mm}@media print{*{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{background:white;font-size:10px}.toolbar{display:none}.page{width:277mm;min-height:190mm;box-shadow:none;margin:0;padding:4mm 3mm;break-after:page}.two-col{grid-template-columns:1fr 1fr;gap:8mm}.three-col{grid-template-columns:repeat(3,1fr)}.cover h1{font-size:58px}.cover-body{padding-top:22mm}.cover-mark{display:block;font-size:320px}.chapter{font-size:30px}.chapter.compact{font-size:27px}.lead{font-size:20px}.concept{font-size:10px;line-height:1.7}.info p,.discovery p,.trend p{font-size:9px}.info{margin-bottom:12px}h3{font-size:14px}.execution .info{margin-bottom:10px}.disclaimer{font-size:8px}.cover .subtitle{font-size:23px}.render{max-height:63mm}.audience{padding:14px}header{margin-bottom:18px}.page footer{font-size:7px;margin-top:auto;padding-top:10px}img,.info,.trend,.audience{break-inside:avoid}h2,h3,h4{break-after:avoid}p{orphans:3;widows:3}}
  </style></head><body><nav class="toolbar"><span>SG Partnerships · ${h(e.name)} · ${pages.length} pages</span><button onclick="window.print()">Print / Save PDF</button></nav>${pages.join("")}</body></html>`;
- if(Buffer.byteLength(html)>4_000_000)throw Error("This deck is too large for one export. Reduce the number of rendered ideas in this scope before exporting.");return html;
+  if (Buffer.byteLength(html) > 4_000_000)
+    throw Error(
+      "This deck is too large for one export. Reduce the number of rendered ideas in this scope before exporting.",
+    );
+  return html;
 }

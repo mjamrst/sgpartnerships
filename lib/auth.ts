@@ -1,4 +1,39 @@
-const encoder=new TextEncoder();
-async function key(secret:string){return crypto.subtle.importKey("raw",encoder.encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign","verify"])}
-export async function createSession(secret:string){const expires=String(Date.now()+7*86400000);const signature=await crypto.subtle.sign("HMAC",await key(secret),encoder.encode(expires));return expires+"."+Buffer.from(signature).toString("hex")}
-export async function validSession(token:string|undefined,secret:string){if(!token)return false;const[expires,signature]=token.split(".");if(!expires||!signature||!/^\d+$/.test(expires)||!Number.isFinite(Number(expires))||Number(expires)<Date.now()||Number(expires)>Date.now()+7*86400000||!/^[a-f0-9]{64}$/.test(signature))return false;return crypto.subtle.verify("HMAC",await key(secret),Buffer.from(signature,"hex"),encoder.encode(expires));}
+const encoder = new TextEncoder();
+async function key(secret: string) {
+  return crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
+}
+export async function createSession(secret: string) {
+  const expires = String(Date.now() + 7 * 86400000);
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    await key(secret),
+    encoder.encode(expires),
+  );
+  return expires + "." + Buffer.from(signature).toString("hex");
+}
+export async function validSession(token: string | undefined, secret: string) {
+  if (!token) return false;
+  const [expires, signature] = token.split(".");
+  if (
+    !expires ||
+    !signature ||
+    !/^\d+$/.test(expires) ||
+    !Number.isFinite(Number(expires)) ||
+    Number(expires) < Date.now() ||
+    Number(expires) > Date.now() + 7 * 86400000 ||
+    !/^[a-f0-9]{64}$/.test(signature)
+  )
+    return false;
+  return crypto.subtle.verify(
+    "HMAC",
+    await key(secret),
+    Buffer.from(signature, "hex"),
+    encoder.encode(expires),
+  );
+}

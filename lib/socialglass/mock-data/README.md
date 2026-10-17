@@ -1,6 +1,6 @@
 # SocialGlass mock boundary
 
-All audiences, metrics, handles, captions, and signals are fictional. `trends.ts` contains 27 hand-authored signals. Runs return 16, deterministically shuffled by audience names and the requested date range. The same inputs are reproducible; change audience selection or dates to vary the set. The service resolves database audience IDs to stable names before calling the adapter.
+All audiences, metrics, handles, captions, and signals are fictional. `trends.ts` contains 27 hand-authored signals. Runs return 16: five core signals that anchor the default story, plus eleven selected by a deterministic shuffle of audience names and the requested date range. The same inputs are reproducible; change audience selection or dates to vary the set and metrics. The service resolves database audience IDs to stable names before calling the adapter.
 
 `SOCIALGLASS_MODE=mock` is the default. `live` fails explicitly until a real client is configured; it never silently labels mock observations as live.
 
