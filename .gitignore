@@ -1,2 +1,16 @@
 .vercel
 .env*
+!.env.example
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+prisma/*.db*
+prisma/schema.generated.prisma
+public/generated/
+*.tsbuildinfo
+.DS_Store
+.agents/
+skills-lock.json

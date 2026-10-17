@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Brand {
+  id          String @id @default(cuid())
+  name        String
+  category    String
+  objectives  Json
+  history     Json
+  toneOfVoice String
+  constraints Json
+  sources     Json
+  properties  Property[]
+  engagements Engagement[]
+}
+
+model Property {
+  id          String @id @default(cuid())
+  brandId     String
+  name        String
+  type        String
+  dealTerms   Json
+  assets      Json
+  brand       Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  engagements Engagement[]
+}
+
+model Engagement {
+  id             String @id @default(cuid())
+  name           String
+  brandId        String
+  scope          String @default("property")
+  propertyId     String?
+  status         String @default("active")
+  createdAt      DateTime @default(now())
+  discoveryBrief String @default("")
+  recommendations Json
+  brand          Brand @relation(fields: [brandId], references: [id])
+  property       Property? @relation(fields: [propertyId], references: [id])
+  answers        DiscoveryAnswer[]
+  audiences      Audience[]
+  snapshots      TrendSnapshot[]
+  outputs        Output[]
+}
+
+model DiscoveryAnswer {
+  id           String @id @default(cuid())
+  engagementId String
+  questionKey  String
+  answer       String
+  source       String
+  engagement   Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  @@unique([engagementId, questionKey, source])
+}
+
+model Audience {
+  id           String @id @default(cuid())
+  engagementId String
+  name         String
+  definition   Json
+  size         Int @default(0)
+  platforms    Json
+  status       String @default("draft")
+  composition  Json
+  engagement   Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  snapshots    TrendSnapshot[]
+}
+
+model TrendSnapshot {
+  id           String @id @default(cuid())
+  engagementId String
+  audienceId   String?
+  audienceIds  Json
+  capturedAt   DateTime @default(now())
+  window       Json
+  engagement   Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  audience     Audience? @relation(fields: [audienceId], references: [id], onDelete: SetNull)
+  trends       Trend[]
+}
+
+model Trend {
+  id             String @id @default(cuid())
+  snapshotId     String
+  title          String
+  summary        String
+  category       String
+  velocity       String
+  volume         Int
+  growth         Int
+  relevanceScore Int
+  propertyScore  Int
+  platforms      Json
+  exemplars      Json
+  weeklyVolume   Json
+  whyItMatters   String
+  starred        Boolean @default(false)
+  snapshot       TrendSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+}
+
+model Output {
+  id           String @id @default(cuid())
+  engagementId String
+  lane         String
+  trendIds     Json
+  title        String
+  hook         String
+  concept      String
+  brief        Json
+  score        Json
+  status       String @default("draft")
+  scope        String @default("property")
+  propertyId   String?
+  createdAt    DateTime @default(now())
+  engagement   Engagement @relation(fields: [engagementId], references: [id], onDelete: Cascade)
+  renderings   Rendering[]
+}
+
+model Rendering {
+  id        String @id @default(cuid())
+  outputId  String
+  prompt    String
+  imageUrl  String
+  provider  String
+  createdAt DateTime @default(now())
+  output    Output @relation(fields: [outputId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,46 @@
+{
+  "name": "sg-partnerships",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "engines": { "node": "24.x" },
+  "scripts": {
+    "dev": "node scripts/db.mjs generate && next dev",
+    "build": "node scripts/db.mjs generate && next build",
+    "start": "next start",
+    "postinstall": "node scripts/db.mjs generate",
+    "db:push": "node scripts/db.mjs push",
+    "seed": "node scripts/db.mjs seed",
+    "seed:production": "node scripts/db.mjs seed --production",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.135.0",
+    "@prisma/client": "6.19.3",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@vercel/blob": "^2.3.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "dotenv": "^17.2.3",
+    "lucide-react": "^0.577.0",
+    "next": "16.4.2",
+    "openai": "^6.32.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "prisma": "6.19.3",
+    "tailwindcss": "^4.2.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

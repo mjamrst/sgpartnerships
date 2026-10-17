@@ -1,0 +1,1 @@
+export default function Page() { return <main className="p-16"><p className="eyebrow">SocialGlass / Partnerships</p><h1 className="display mt-6 text-5xl">Intelligence into possibility.</h1><p className="mt-6">Your partnership workbench is taking shape.</p></main>; }
